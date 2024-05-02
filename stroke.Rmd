@@ -1,0 +1,262 @@
+---
+title: "Build and deploy a stroke prediction model using R"
+output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+**BISHAL DHUNGANA**
+
+05-01-2024
+
+**ABOUT DATA ANALYSIS REPORT**
+
+This RMarkdown file contains the report of the data analysis done for the project on building and deploying a stroke prediction model in R. It contains analysis such as data exploration, summary statistics, and building the prediction models.
+
+**DATA DESCRIPTION:**
+
+According to the World Health Organization (WHO), STROKE IS THE 2ND LEADING CAUSE OF DEATH GLOBALLY, RESPONSIBLE FOR APPROXIMATELY 11% OF TOTAL DEATHS.
+
+This dataset is used to predict whether a patient is likely to get stroke based on the input parameters like gender, age, various diseases, and smoking status. Each row in the data provides relevant information about the patient.
+
+
+**TASK ONE: IMPORT DATA AND DATA PREPROCESSING**
+Load data and install packages
+
+
+```{r}
+packages <- c("tidyverse", "lubridate", "ggplot2", "dplyr", "caret", "randomForest", "skimr", "gridExtra", "caTools", "corrplot", "ggcorrplot", "naniar")
+
+# Install and load required packages
+for (pkg in packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
+```
+
+```{r}
+Data_Stroke <- read.csv('healthcare-dataset-stroke-data.csv')
+summary(Data_Stroke)
+```
+
+```{r}
+glimpse(Data_Stroke)
+```
+
+```{r}
+skim(Data_Stroke)
+```
+
+```{r}
+miss_scan_count(data = Data_Stroke, search = list("Unknown","N/A","Other"))
+```
+
+```{r}
+##Convert NA to median in BMI
+Data_Stroke$bmi <- as.numeric(Data_Stroke$bmi)
+```
+
+```{r}
+idx <- complete.cases(Data_Stroke)
+bmi_idx <- is.na(Data_Stroke$bmi)
+median_bmi <- median(Data_Stroke$bmi, na.rm = TRUE)
+
+Data_Stroke[bmi_idx,]$bmi <- median_bmi
+colSums(is.na(Data_Stroke))
+```
+
+```{r}
+##Check duplicates
+sum(duplicated(Data_Stroke))
+```
+
+```{r}
+colSums(Data_Stroke == 'N/A')
+```
+
+```{r}
+colSums(Data_Stroke == '')
+```
+
+```{r}
+Data_Stroke %>% count(gender)
+```
+
+```{r}
+##Remove ID and filter out 'Other' values in Gender
+Data_Stroke <- Data_Stroke %>% 
+  select(-c(id)) %>% 
+  filter(gender != "Other")
+str(Data_Stroke)
+```
+
+```{r}
+##Convert non-numeric variables to factors
+Data_Stroke$stroke <- factor(Data_Stroke$stroke, levels = c(0,1), labels = c("No", "Yes"))
+Data_Stroke$hypertension <- factor(Data_Stroke$hypertension, levels = c(0,1), labels = c("No", "Yes"))
+Data_Stroke$heart_disease <- factor(Data_Stroke$heart_disease, levels = c(0,1), labels = c("No", "Yes"))
+```
+
+
+
+**TASK TWO: BUILD PREDICTION MODELS**
+```{r}
+d1 <- Data_Stroke %>%
+  ggplot(aes(x = gender, fill = gender)) +
+  geom_bar(fill = c("red", "blue")) +
+  ggtitle("Gender Distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+  
+d2 <- Data_Stroke %>%
+  ggplot(aes(x = hypertension, fill = hypertension)) +
+  geom_bar(fill = c("red", "blue")) +
+  ggtitle("Hypertenstion Distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+  
+
+d3 <- Data_Stroke %>%
+  ggplot(aes(x = heart_disease, fill = heart_disease)) +
+  geom_bar(fill = c("red", "blue")) +
+  ggtitle("Heart Disease Distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+
+d4 <- Data_Stroke %>%
+  ggplot(aes(x = ever_married, fill = ever_married)) +
+  geom_bar(fill = c("red","blue")) +
+  ggtitle("Married distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+
+d5 <- Data_Stroke %>%
+  ggplot(aes(x = work_type, fill = work_type)) +
+  geom_bar(fill = c("red", "blue","green","orange","aquamarine")) +
+  ggtitle("Work type distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+
+d6 <- Data_Stroke %>%
+  ggplot(aes(x = stroke, fill = stroke)) +
+  geom_bar(fill = c("red", "blue")) +
+  ggtitle("Stroke distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+
+d7 <- Data_Stroke %>%
+  ggplot(aes(x = Residence_type, fill = Residence_type)) +
+  geom_bar(fill = c("red", "blue")) +
+  ggtitle("Residence distribution") +
+  geom_text(aes(label=..count..), stat = "Count", vjust = 1.0)
+
+
+grid.arrange(d1,d2,d3,d4,d5,d6,d7, ncol=2)
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = gender, fill = stroke)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet")) +
+  ggtitle("Gender vs. Stroke") 
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = hypertension, fill = stroke)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet")) +
+  ggtitle("Hypertension vs. Stroke")
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = heart_disease, fill = stroke)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet")) +
+  ggtitle("Heart disease vs. Stroke") 
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = Residence_type, fill = stroke)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet")) +
+  ggtitle("Residence type vs. Stroke")
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = smoking_status, fill = stroke)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet")) +
+  ggtitle("Smoking status vs. Stroke")
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = work_type, fill = stroke)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet"
+                             )) +
+  ggtitle("Type of Work vs. Stroke")
+```
+
+```{r}
+Data_Stroke %>%
+  ggplot(aes(x = avg_glucose_level, fill = stroke)) +
+  geom_density(alpha = 0.7) +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet"
+  )) +
+  ggtitle("Average Glucose level vs. Stroke")
+```
+
+```{r}
+Data_Stroke %>% filter(between(bmi, 0, 60)) %>%
+  ggplot(aes(x = bmi, fill = stroke)) +
+  geom_density(alpha = 0.7) +
+  scale_fill_manual(values=c("aquamarine3",
+                             "blueviolet"
+  )) +
+  ggtitle("Body Mass Index vs. Stroke")
+```
+
+
+
+**TASK THREE: EVALUATE AND SELECT PREDICTION MODELS**
+```{r}
+sample.split(Data_Stroke$stroke,SplitRatio = 0.8)->split_tag
+train<-subset(Data_Stroke,split_tag==TRUE)
+test<-subset(Data_Stroke,split_tag==FALSE)
+dim(train)
+dim(test)
+```
+
+
+
+**TASK FOUR: DEPLOY THE MODEL**
+```{r}
+set.seed(123)
+rf <- randomForest(formula = stroke~.,data = train)
+rf
+```
+
+```{r}
+plot(rf)
+```
+
+```{r}
+confusionMatrix(predict(rf,test),test$stroke)
+```
+
+
+
+**TASK FIVE: FINDINGS AND CONCLUSIONS**
+As depicted above, our model boasts
+an accuracy rate exceeding 95%, indicating that it underwent effective
+training.
